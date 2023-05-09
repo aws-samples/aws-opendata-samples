@@ -1,11 +1,6 @@
-## My Project
+## AWS Open Data Samples
 
-TODO: Fill this README out!
-
-Be sure to:
-
-* Change the title in this README
-* Edit your repository description on GitHub
+This repository contains a set of sample projects and Jupyter Notebooks for the [Registry of Open Data on AWS](https://registry.opendata.aws/).
 
 ## Security
 
