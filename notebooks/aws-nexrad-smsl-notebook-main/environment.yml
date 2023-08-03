@@ -1,0 +1,12 @@
+name: aws_nexrad_smsl
+channels:
+- conda-forge
+- defaults
+dependencies:
+- python>=3.8
+- numpy
+- matplotlib
+- jupyter
+- netcdf4
+- xarray
+- scipy
