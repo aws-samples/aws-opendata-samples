@@ -1,0 +1,16 @@
+distributed:
+  logging:
+    distributed: info
+    distributed.worker: debug
+    bokeh: critical
+    tornado: critical
+
+  scheduler:
+    work-stealing: False
+    allowed-failures: 10
+
+  admin:
+    log-format: '%(name)s - %(levelname)s - %(message)s'
+    tick:
+      interval: 20ms  
+      limit: 20s
