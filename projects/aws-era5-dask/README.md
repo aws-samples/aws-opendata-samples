@@ -14,3 +14,6 @@ Once the stack is deployed, you will need to open the HTTP port in the Dask Sche
 
 ## Downloading the template
 As an alternative, you can download the CloudFormation template from [dask-environment.yaml](dask-environment.yaml) and proceed from step 2 here: https://catalog.workshops.aws/climatedata/en-US/lab-2/own.
+
+## Building the container image
+Instructions for building the container image can be found here: https://catalog.workshops.aws/climatedata/en-US/lab-1 
