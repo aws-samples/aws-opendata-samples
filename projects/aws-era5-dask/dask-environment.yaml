@@ -65,7 +65,7 @@ Metadata:
 Parameters:
   SagemakerCodeRepo:
     Type: String
-    Default: ''
+    Default: 'https://github.com/aws-samples/aws-opendata-samples.git'
     Description: Github Repository for loading into the Sagemaker Jupyter environment (default none)
 
   SagemakerNotebookInstance:
@@ -490,6 +490,8 @@ Resources:
             Principal:
               Service: ecs-tasks.amazonaws.com
         Version: "2012-10-17"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
 
   ECSExecutionRolePolicy:
     Type: AWS::IAM::Policy
