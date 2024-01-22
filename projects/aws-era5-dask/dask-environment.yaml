@@ -1,0 +1,1039 @@
+# MIT No Attribution
+# 
+# Copyright 2023 Amazon Web Services, Inc. or its affiliates.  All Rights Reserved.
+# 
+# Permission is hereby granted, free of charge, to any person obtaining a copy of this
+# software and associated documentation files (the "Software"), to deal in the Software
+# without restriction, including without limitation the rights to use, copy, modify,
+# merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+# permit persons to whom the Software is furnished to do so.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+# INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+# PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+# HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+# SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+AWSTemplateFormatVersion: 2010-09-09
+Transform: AWS::Serverless-2016-10-31
+Description: Deploys a data processing environment with SageMaker and Dask on ECS
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: SageMaker Notebook configuration
+        Parameters:
+          - SagemakerCodeRepo
+          - SagemakerNotebookInstance
+          - AssetsBucketName
+          - AssetsBucketPrefix
+      - Label:
+          default: Network configuration
+        Parameters:
+          - VPCCIDR
+          - AvailabilityZone
+          - AllowedIPRange
+      - Label:
+          default: Dask environment configuration
+        Parameters:
+          - DaskImage
+          - WorkerComputeType
+          - DaskWorkerCPU
+          - DaskWorkerMemory
+          - DaskWorkerMemoryLimit
+          - DaskWorkerThreads
+          - DaskWorkerStorage
+          - DaskWorkerSpotPricing
+          - DaskSchedulerCPU
+          - DaskSchedulerMemory
+          - DaskDashboardPort
+      - Label:
+          default: EC2 cluster configuration options (if using EC2 as compute type)
+        Parameters:
+          - ManagedAutoscaling
+          - MaxSize
+          - ECSOptimisedImageParameter
+      - Label:
+          default: Optional Lustre file system configuration (EC2 clusters only)
+        Parameters:
+          - FSXDNSName
+          - FSXMountName
+          - FSXMountPoint
+
+Parameters:
+  SagemakerCodeRepo:
+    Type: String
+    Default: 'https://github.com/aws-samples/aws-opendata-samples.git'
+    Description: Github Repository for loading into the Sagemaker Jupyter environment (default none)
+
+  SagemakerNotebookInstance:
+    Type: String
+    Description: Sagemaker Notebook instance type
+    AllowedValues:
+      - ml.t3.medium
+      - ml.t3.large
+      - ml.t3.xlarge
+      - ml.t3.2xlarge
+      - ml.m5.xlarge
+      - ml.m5.2xlarge
+      - ml.m5.4xlarge
+      - ml.r5.large
+      - ml.r5.xlarge
+      - ml.r5.2xlarge
+    Default: ml.t3.large
+
+  DaskImage:
+    Type: String
+    Default: public.ecr.aws/j7x5r0l2/aws-dask-workshop:latest
+    Description: Container image to use for the Dask workers
+
+  DaskWorkerCPU:
+    Type: String
+    Default: '1024'
+    Description: CPU units to assign to dask workers (1024 = 1 vCPU)
+
+  DaskWorkerMemory:
+    Type: String
+    Default: '8192'
+    Description: Memory in MiB for dask worker ECS tasks
+
+  DaskWorkerMemoryLimit:
+    Type: String
+    Default: 7G
+    Description: Dask worker memory limit. Must be less than DaskWorkerMemory. Refer https://distributed.dask.org/en/stable/worker-memory.html
+
+  DaskWorkerThreads:
+    Type: String
+    Default: '2'
+    Description: Number of threads per dask worker
+
+  DaskWorkerStorage:
+    Type: Number
+    Default: 20
+    MinValue: 20
+    MaxValue: 200
+    Description: Fargate Ephemeral Storage available for Dask Workers (requires Fargate compute)
+
+  DaskWorkerSpotPricing:
+    Type: String
+    Default: 'YES'
+    Description: Use Fargate spot pricing for dask workers, to save money (workers may be terminated)
+    AllowedValues:
+      - 'YES'
+      - 'NO'
+
+  DaskSchedulerCPU:
+    Type: String
+    Default: '2048'
+    Description: CPU units to assign to dask scheduler (1024 = 1 vCPU)
+
+  DaskSchedulerMemory:
+    Type: String
+    Default: '16384'
+    Description: Memory in MiB for the dask scheduler ECS task
+
+  DaskDashboardPort:
+    Type: Number
+    Default: 80
+    Description: Port number to use for dask dashboard HTTP interface
+
+  VPCCIDR:
+    Type: String
+    Default: '10.10.0.0/16'
+    Description: IP address CIDR range for the Dask VPC
+
+  AllowedIPRange:
+    Type: String
+    Default: ''
+    Description: IP range to allow access to dask dashboard (no access if blank)
+
+  MaxSize:
+    Type: Number
+    Default: '12'
+    Description: Maximum number of EC2 instances that can be launched in your ECS cluster (ignored if WorkerComputeType is Fargate).
+
+  AvailabilityZone:
+    Description: Specify Availability Zone or leave blank to select the first zone in the region
+    Type: String
+    Default: ''
+
+  WorkerComputeType:
+    Description: EC2 instance type or Fargate
+    Type: String
+    Default: Fargate
+    
+  FSXDNSName:
+    Description: DNS name of FSX or cache file system (optional)
+    Type: String
+    Default: ''
+
+  FSXMountName:
+    Description: Remote mount point name of FSX or cache file system (optional)
+    Type: String
+    Default: ''
+
+  FSXMountPoint:
+    Description: Local EC2 folder to use for mounting FSX or cache file system (optional)
+    Type: String
+    Default: ''
+
+  ManagedAutoscaling:
+    Description: Controls whether to apply a managed scaling policy on the ECS auto-scaling group
+    Type: String
+    Default: 'False'
+    AllowedValues:
+      - 'True'
+      - 'False'
+
+  ECSOptimisedImageParameter:
+    Description: Name of the Parameter Store parameter containing the AMI ID for ECS EC2 instances
+    Type: String
+    Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended
+
+  AssetsBucketName:
+    Description: S3 bucket containing assets to download to Notebook instance (default none)
+    Type: String
+
+  AssetsBucketPrefix:
+    Description: S3 prefix location of assets to download to the Notebook (default none)
+    Type: String
+
+Conditions:
+  DaskWorkerSpotPricingCondition: !Equals [!Ref DaskWorkerSpotPricing, 'YES']
+  AZSpecified: !Not [!Equals [!Ref AvailabilityZone, '']]
+  FargateCompute: !Equals [!Ref WorkerComputeType, 'Fargate']
+  EC2Compute: !Not [!Condition FargateCompute]
+  MountFSX: !Not [!Equals [!Ref FSXDNSName, '']]
+  EnableAutoscaling: !Equals [!Ref ManagedAutoscaling, 'True']
+  CodeRepoSpecified: !Not [!Equals [!Ref SagemakerCodeRepo, '']]
+  AllowedIPSpecified: !Not [!Equals [!Ref AllowedIPRange, '']]
+  FargateStorageSpecified: !Not [!Equals [!Ref DaskWorkerStorage, 20]]
+  FargateStorageIncrease: !And [!Condition FargateCompute, !Condition FargateStorageSpecified]
+
+Resources:
+  DaskVpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VPCCIDR
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      InstanceTenancy: default
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-VPC'
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: !Select [ 0, !Cidr [ !GetAtt DaskVpc.CidrBlock, 4, 14 ]]
+      VpcId: !Ref DaskVpc
+      AvailabilityZone: 
+        Fn::If:
+          - AZSpecified
+          - !Ref AvailabilityZone
+          - Fn::Select:
+            - 0
+            - Fn::GetAZs: ""
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-PublicSubnet'
+  PublicSubnet1RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref DaskVpc
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-PublicRouteTable'
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicSubnet1RouteTable
+      SubnetId: !Ref PublicSubnet1
+  PublicSubnet1DefaultRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PublicSubnet1RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+    DependsOn:
+      - VPCGatewayA
+  PublicSubnet1EIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-EIP'
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-IGW'
+  VPCGatewayA:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref DaskVpc
+      InternetGatewayId: !Ref InternetGateway
+  NATGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt PublicSubnet1EIP.AllocationId
+      SubnetId: !Ref PublicSubnet1
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: !Select [ 1, !Cidr [ !GetAtt DaskVpc.CidrBlock, 4, 14 ]]
+      VpcId: !Ref DaskVpc
+      AvailabilityZone: 
+        Fn::If:
+          - AZSpecified
+          - !Ref AvailabilityZone
+          - Fn::Select:
+            - 0
+            - Fn::GetAZs: ""
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-PrivateSubnet'
+  PrivateSubnet1RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref DaskVpc
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-PrivateRouteTable'
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateSubnet1RouteTable
+      SubnetId: !Ref PrivateSubnet1
+  PrivateSubnet1DefaultRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateSubnet1RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGateway
+  PrivateSubnetS3Endpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      RouteTableIds:
+        - !Ref PrivateSubnet1RouteTable
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.s3'
+      VpcId: !Ref DaskVpc
+
+  LogGroupScheduler:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/${AWS::StackName}/dask/scheduler
+      RetentionInDays: 3
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+  LogGroupWorker:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/${AWS::StackName}/dask/worker
+      RetentionInDays: 3
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+
+  ContainerAMILookupFunction:
+    Type: AWS::Serverless::Function
+    Condition: EC2Compute
+    Properties:
+      Description: Retrieve latest ECS-optimised AMI for the region
+      Runtime: python3.9
+      Handler: index.handler
+      Timeout: 30
+      InlineCode: |
+        import json
+        import cfnresponse
+        import boto3
+        def handler(event, context):
+          print(f'REQUEST BODY: {event}')
+          parameter_name = (event['ResourceProperties']['Parameter'])
+          print(f'Parameter: {parameter_name}')
+          request_type = event['RequestType']
+          try:
+            responseData = {}
+            if request_type == 'Create' or request_type == 'Update':
+              print(f"Handling event {request_type}")
+              client = boto3.client('ssm')
+              ami_id = json.loads(client.get_parameter(Name=parameter_name)['Parameter']['Value'])['image_id']
+              print(f'Image ID: {ami_id}')
+              responseData['AMI'] = ami_id
+              cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData)
+            else:
+              print(f"Ignoring event {request_type}")
+              cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData)
+          except Exception as err:
+            print(f"ERROR: {err}")
+            responseData = {"Data": str(err)}
+            cfnresponse.send(event, context, cfnresponse.FAILED, responseData)
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action: ssm:GetParameter
+              Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}::parameter/aws/service/ecs/optimized-ami/*"
+
+  ContainerAMILookup:
+    Type: Custom::ContainerAMILookup
+    Condition: EC2Compute
+    Properties:
+      ServiceToken: !GetAtt ContainerAMILookupFunction.Arn
+      Parameter: !Ref ECSOptimisedImageParameter
+
+  EC2Role:
+    Type: 'AWS::IAM::Role'
+    Condition: EC2Compute
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: ecs-service
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'ecs:CreateCluster'
+                  - 'ecs:DeregisterContainerInstance'
+                  - 'ecs:DiscoverPollEndpoint'
+                  - 'ecs:Poll'
+                  - 'ecs:RegisterContainerInstance'
+                  - 'ecs:StartTelemetrySession'
+                  - 'ecs:Submit*'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource: '*'
+
+  EC2InstanceProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Condition: EC2Compute
+    Properties:
+      Path: /
+      Roles:
+        - !Ref EC2Role
+
+  ECSAutoScalingGroup:
+    Type: 'AWS::AutoScaling::AutoScalingGroup'
+    Condition: EC2Compute
+    Properties:
+      VPCZoneIdentifier: 
+        - !Ref PrivateSubnet1
+      LaunchConfigurationName: !Ref ContainerInstances
+      MinSize: '0'
+      MaxSize: !Ref MaxSize
+      DesiredCapacity: '0'
+    UpdatePolicy:
+      AutoScalingReplacingUpdate:
+        WillReplace: 'true'
+
+  ContainerInstances:
+    Type: 'AWS::AutoScaling::LaunchConfiguration'
+    Condition: EC2Compute
+    Properties:
+      ImageId: !GetAtt ContainerAMILookup.AMI
+      SecurityGroups:
+        - !Ref DaskWorkerSecurityGroup
+      InstanceType: !Ref WorkerComputeType
+      IamInstanceProfile: !Ref EC2InstanceProfile
+      UserData: 
+        Fn::Base64: 
+          Fn::If:
+            - MountFSX 
+            - !Sub |
+                #!/bin/bash -xe
+                echo ECS_CLUSTER=${DaskCluster} >> /etc/ecs/ecs.config
+                yum install -y aws-cfn-bootstrap
+                amazon-linux-extras install -y lustre2.10
+                mkdir -p ${FSXMountPoint}
+                mount -t lustre ${FSXDNSName}@tcp:${FSXMountName} ${FSXMountPoint} -o relatime,flock
+                /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
+            - !Sub |
+                #!/bin/bash -xe
+                echo ECS_CLUSTER=${DaskCluster} >> /etc/ecs/ecs.config
+                yum install -y aws-cfn-bootstrap
+                /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
+  
+  ECSAutoScalingCapacityProvider:
+    Type: 'AWS::ECS::CapacityProvider'
+    Condition: EC2Compute
+    Properties:
+      AutoScalingGroupProvider:
+        AutoScalingGroupArn: !Ref ECSAutoScalingGroup
+        ManagedScaling:
+          InstanceWarmupPeriod: 120
+          Status: 
+            Fn::If:
+              - EnableAutoscaling
+              - ENABLED
+              - DISABLED
+          TargetCapacity: 90
+
+  ECSExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+        Version: "2012-10-17"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+
+  ECSExecutionRolePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+              - ecr:BatchCheckLayerAvailability
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:GetAuthorizationToken
+            Effect: Allow
+            Resource: "*"
+          - Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Effect: Allow
+            Resource:
+              Fn::GetAtt:
+                - LogGroupScheduler
+                - Arn
+          - Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Effect: Allow
+            Resource:
+              Fn::GetAtt:
+                - LogGroupWorker
+                - Arn
+        Version: "2012-10-17"
+      PolicyName: ECSExecutionRolePolicy
+      Roles:
+        - Ref: ECSExecutionRole
+
+  DaskCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub '${AWS::StackName}-ECSCluster'
+
+  DaskClusterCapacityProviders:
+    Type: AWS::ECS::ClusterCapacityProviderAssociations
+    DependsOn: DaskCluster
+    Properties:
+      CapacityProviders:
+        - FARGATE
+        - FARGATE_SPOT
+        - Fn::If:
+            - EC2Compute
+            - !Ref ECSAutoScalingCapacityProvider
+            - !Ref AWS::NoValue
+      Cluster: !Sub '${AWS::StackName}-ECSCluster'
+      DefaultCapacityProviderStrategy:
+        - CapacityProvider: FARGATE
+          Weight: 1
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 0
+
+  DaskClusterPrivateNS:
+    Type: AWS::ServiceDiscovery::PrivateDnsNamespace
+    Properties:
+      Name: local-dask
+      Vpc: !Ref DaskVpc
+
+  SchedulerDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - Command:
+            - dask-scheduler
+            - --dashboard
+            - --dashboard-address
+            - !Ref DaskDashboardPort
+          Cpu: !Ref DaskSchedulerCPU
+          Essential: true
+          Image: !Ref DaskImage
+          LogConfiguration: 
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref LogGroupScheduler
+              awslogs-stream-prefix: ecs
+              awslogs-region: !Ref AWS::Region
+          Memory: !Ref DaskSchedulerMemory
+          MemoryReservation: !Ref DaskSchedulerMemory
+          Name: Dask
+      Cpu: !Ref DaskSchedulerCPU
+      ExecutionRoleArn:
+        Fn::GetAtt:
+          - ECSExecutionRole
+          - Arn
+      Family: !Sub '${AWS::StackName}-DaskScheduler'
+      Memory: !Ref DaskSchedulerMemory
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      TaskRoleArn:
+        Fn::GetAtt:
+          - ECSExecutionRole
+          - Arn
+
+  WorkerDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - Command:
+            - dask-worker
+            - dask-scheduler.local-dask:8786
+            - --memory-limit
+            - !Ref DaskWorkerMemoryLimit
+            - --worker-port
+            - '9000'
+            - --no-nanny
+            - --no-dashboard
+            - --death-timeout
+            - '30'
+            - --nthreads
+            - !Ref DaskWorkerThreads
+            - --nworkers
+            - '1'
+          Cpu: !Ref DaskWorkerCPU
+          Environment:
+            - Name: S3FS_LOGGING_LEVEL
+              Value: DEBUG 
+          Essential: true
+          Image: !Ref DaskImage
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref LogGroupWorker
+              awslogs-stream-prefix: ecs
+              awslogs-region: !Ref AWS::Region
+          Memory: !Ref DaskWorkerMemory
+          MemoryReservation: !Ref DaskWorkerMemory
+          MountPoints:
+            Fn::If:
+              - MountFSX
+              - - ContainerPath: !Ref FSXMountPoint
+                  ReadOnly: true
+                  SourceVolume: Lustre
+              - !Ref AWS::NoValue
+          Name: Dask
+      Cpu: !Ref DaskWorkerCPU
+      EphemeralStorage:
+        Fn::If:
+          - FargateStorageIncrease
+          - SizeInGiB: !Ref DaskWorkerStorage 
+          - !Ref AWS::NoValue
+      ExecutionRoleArn:
+        Fn::GetAtt:
+          - ECSExecutionRole
+          - Arn
+      Family: !Sub '${AWS::StackName}-DaskWorker'
+      Memory: !Ref DaskWorkerMemory
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - Fn::If:
+            - FargateCompute
+            - FARGATE
+            - EC2
+      TaskRoleArn:
+        Fn::GetAtt:
+          - ECSExecutionRole
+          - Arn
+      Volumes:
+        Fn::If:
+          - MountFSX
+          - - Host:
+                SourcePath: !Ref FSXMountPoint
+              Name: Lustre
+          - !Ref AWS::NoValue
+
+  DaskSchedulerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable Scheduler ports access
+      GroupName: !Sub '${AWS::StackName}-DaskSchedulerSecurityGroup'
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic by default
+          IpProtocol: "-1"
+      SecurityGroupIngress:
+        # This rule allows access to the Dask dashboard, but only if there is
+        # a valid source IP is specified
+        - Fn::If:
+            - AllowedIPSpecified
+            - CidrIp: !Ref AllowedIPRange
+              Description: Allow access to the dask dashboard
+              FromPort: !Ref DaskDashboardPort
+              IpProtocol: tcp
+              ToPort: !Ref DaskDashboardPort
+            - !Ref AWS::NoValue
+        - SourceSecurityGroupId: !GetAtt NotebookSecurityGroup.GroupId
+          Description: Allow access from SageMaker notebook
+          FromPort: 8786
+          IpProtocol: tcp
+          ToPort: 8789
+      VpcId: !Ref DaskVpc
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-DaskSchedulerSecurityGroup'
+
+  NotebookSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow access to SageMaker notebook instance
+      GroupName: !Sub '${AWS::StackName}-NotebookSecurityGroup'
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic by default
+          IpProtocol: '-1'
+      VpcId: !Ref DaskVpc
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-NotebookSecurityGroup'
+
+  DaskWorkerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Restrict connectivity to dask workers
+      GroupName: !Sub '${AWS::StackName}-DaskWorkerSecurityGroup'
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic by default
+          IpProtocol: '-1'
+      SecurityGroupIngress:
+        - SourceSecurityGroupId: !GetAtt DaskSchedulerSecurityGroup.GroupId
+          Description: Allow full access from dask scheduler
+          IpProtocol: '-1'
+        - SourceSecurityGroupId: !GetAtt NotebookSecurityGroup.GroupId
+          Description: Allow full access from the notebook
+          IpProtocol: '-1'
+      VpcId: !Ref DaskVpc
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-DaskWorkerSecurityGroup'
+
+  DaskWorkerToWorkerIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Allow dask workers to communicate freely with each other
+      GroupId: !GetAtt DaskWorkerSecurityGroup.GroupId
+      SourceSecurityGroupId: !GetAtt DaskWorkerSecurityGroup.GroupId
+      IpProtocol: '-1'
+
+  DaskWorkerToSchedulerIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Allow dask workers to communicate with the scheduler
+      GroupId: !GetAtt DaskSchedulerSecurityGroup.GroupId
+      SourceSecurityGroupId: !GetAtt DaskWorkerSecurityGroup.GroupId
+      IpProtocol: '-1'
+
+  DaskSchedulerService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref DaskCluster
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      DesiredCount: 0
+      EnableECSManagedTags: false
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - Fn::GetAtt:
+                - DaskSchedulerSecurityGroup
+                - GroupId
+          Subnets:
+            - Ref: PublicSubnet1
+      ServiceRegistries:
+        - RegistryArn:
+            Fn::GetAtt:
+              - DaskSchedulerServiceDiscovery
+              - Arn
+      TaskDefinition: !Ref SchedulerDefinition
+
+  DaskSchedulerServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      DnsConfig:
+        DnsRecords:
+          - TTL: 5
+            Type: A
+        NamespaceId:
+          Fn::GetAtt:
+            - DaskClusterPrivateNS
+            - Id
+        RoutingPolicy: MULTIVALUE
+      Name: dask-scheduler
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      NamespaceId:
+        Fn::GetAtt:
+          - DaskClusterPrivateNS
+          - Id
+
+  DaskEC2WorkerService:
+    Type: AWS::ECS::Service
+    Condition: EC2Compute
+    Properties:
+      LaunchType: EC2
+      Cluster: !Ref DaskCluster
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      DesiredCount: 0
+      EnableECSManagedTags: false
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          SecurityGroups:
+            - Fn::GetAtt:
+                - DaskWorkerSecurityGroup
+                - GroupId
+          Subnets:
+            - Ref: PrivateSubnet1
+      TaskDefinition: !Ref WorkerDefinition
+
+  DaskFargateWorkerService:
+    Type: AWS::ECS::Service
+    Condition: FargateCompute
+    Properties:
+      CapacityProviderStrategy:
+        - CapacityProvider:
+            Fn::If:
+              - DaskWorkerSpotPricingCondition
+              - FARGATE_SPOT
+              - FARGATE
+          Weight: 1
+      Cluster: !Ref DaskCluster
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      DesiredCount: 0
+      EnableECSManagedTags: false
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          SecurityGroups:
+            - Fn::GetAtt:
+                - DaskWorkerSecurityGroup
+                - GroupId
+          Subnets:
+            - Ref: PrivateSubnet1
+      TaskDefinition: !Ref WorkerDefinition
+
+  NotebookWaitHandle:
+    Type: AWS::CloudFormation::WaitConditionHandle
+
+  NotebookWaitCondition:
+    Type: AWS::CloudFormation::WaitCondition
+    Properties:
+      Count: 1
+      Handle: !Ref NotebookWaitHandle
+      Timeout: "900"
+
+  SagemakerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: sagemaker.amazonaws.com
+        Version: "2012-10-17"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+        - arn:aws:iam::aws:policy/AmazonECS_FullAccess
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+
+  SagemakerPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+              - ec2:DescribeNetworkInterfaces
+              - cloudformation:DescribeStacks
+            Effect: Allow
+            Resource: "*"
+        Version: "2012-10-17"
+      PolicyName: notebookAccessPolicy
+      Roles:
+        - Ref: SagemakerRole
+
+  NotebookLifecycleConfig:
+    Type: AWS::SageMaker::NotebookInstanceLifecycleConfig
+    Properties:
+      OnCreate:
+      - Content:
+          Fn::Base64:
+            Fn::Sub: |
+              #!/bin/sh
+              set -e
+              WORKING_DIR=/home/ec2-user/SageMaker/custom-miniconda
+
+              cat > /home/ec2-user/create.sh << EOF
+              #!/bin/bash
+
+              echo "\$(date) Installing custom miniconda into $WORKING_DIR"
+              mkdir -p "$WORKING_DIR"
+              wget -q https://repo.anaconda.com/miniconda/Miniconda3-py39_4.12.0-Linux-x86_64.sh -O "$WORKING_DIR/miniconda.sh"
+              bash "$WORKING_DIR/miniconda.sh" -b -u -p "$WORKING_DIR/miniconda"
+
+              echo "\$(date) Creating daskpy3 conda environment"
+              source "$WORKING_DIR/miniconda/bin/activate"
+              conda create -c conda-forge --yes --name daskpy3 python="3.10.8"
+              conda activate daskpy3
+
+              echo "\$(date) Installing packages using micromamba"
+              conda install -c conda-forge micromamba -y 
+
+              echo "\$(date) Installing Jupyter specific packages"
+              micromamba install -c conda-forge -y \
+                basemap \
+                nodejs \
+                ipywidgets==8.0.4 \
+                botocore==1.27.59 \
+                boto3==1.24.59 \
+                aiobotocore==2.4.0 \
+                matplotlib==3.6.2
+
+              echo "\$(date) Installing python packages for working with climate data"
+              micromamba install -c conda-forge -y \
+                bokeh==2.4.3 \
+                cloudpickle==2.2.0 \
+                dask==2022.12.1 \
+                distributed==2022.12.1 \
+                fsspec==2022.11.0 \
+                h5netcdf==1.1.0 \
+                h5py==3.7.0 \
+                intake==0.6.6 \
+                intake-esm==2022.9.18 \
+                kerchunk==0.0.9 \
+                lz4==4.2.0 \
+                ujson==5.5.0 \
+                msgpack-python==1.0.4 \
+                netcdf4==1.6.2 \
+                numpy==1.24.1 \
+                pandas==1.5.2 \
+                python-blosc==1.10.6 \
+                rechunker==0.5.0 \
+                s3fs==2022.11.0 \
+                tornado==6.2 \
+                xarray==2022.12.0 \
+                zarr==2.13.3 \
+                zict==2.2.0
+
+              echo "\$(date) Installing Jupyter kernel"
+              python -m ipykernel install --user --name daskpy3 --display-name "conda_daskpy3"
+              source "$WORKING_DIR/miniconda/bin/deactivate"
+
+              if [ -n "${AssetsBucketName}" ]; then
+                echo "\$(date) Downloading assets from s3://${AssetsBucketName}/${AssetsBucketPrefix}"
+                aws s3 cp --recursive s3://${AssetsBucketName}/${AssetsBucketPrefix} /home/ec2-user/SageMaker
+              fi
+
+              echo "\$(date) Signalling CloudFormation"
+              curl -X PUT -H 'Content-Type:' \
+                   --data-binary '{"Status":"SUCCESS","Reason":"Configuration Complete","UniqueId":"ID1","Data":"Notebook environment created"}' \
+                   "${NotebookWaitHandle}"
+              echo "\$(date) Finished!"
+              EOF
+
+              chown ec2-user:ec2-user /home/ec2-user/create.sh
+              chmod +x /home/ec2-user/create.sh
+
+              sudo -u ec2-user -i nohup /home/ec2-user/create.sh > /home/ec2-user/create-output.log 2>&1 &
+      OnStart:
+      - Content:
+          Fn::Base64: |
+            #!/bin/sh
+            set -e
+            WORKING_DIR=/home/ec2-user/SageMaker/custom-miniconda
+
+            cat > /home/ec2-user/setup.sh << EOF
+            #!/bin/bash
+
+            echo "\$(date) Updating Jupyter config options"
+            cp ~/.jupyter/jupyter_notebook_config.py ~/.jupyter/jupyter_notebook_config.py.bak
+            echo "c.NotebookApp.iopub_data_rate_limit = 10000000000" >> ~/.jupyter/jupyter_notebook_config.py
+            echo "c.NotebookApp.iopub_msg_rate_limit = 10000000000" >> ~/.jupyter/jupyter_notebook_config.py
+            echo "c.EnvironmentKernelSpecManager.use_conda_directly = False" >> ~/.jupyter/jupyter_notebook_config.py
+            rm /home/ec2-user/.condarc
+
+            echo "\$(date) Re-installing Jupyter kernel"
+            source "$WORKING_DIR/miniconda/bin/activate" daskpy3
+            python -m ipykernel install --user --name daskpy3 --display-name "conda_daskpy3"
+            source "$WORKING_DIR/miniconda/bin/deactivate"
+
+            echo "\$(date) Finished!"
+            EOF
+            
+            chown ec2-user:ec2-user /home/ec2-user/setup.sh
+            chmod +x /home/ec2-user/setup.sh
+
+            sudo -u ec2-user -i nohup /home/ec2-user/setup.sh >/home/ec2-user/setup-output.log 2>&1 &
+
+  DaskNotebook:
+    Type: AWS::SageMaker::NotebookInstance
+    Properties:
+      InstanceType: !Ref SagemakerNotebookInstance
+      RoleArn:
+        Fn::GetAtt:
+          - SagemakerRole
+          - Arn
+      DefaultCodeRepository: 
+        Fn::If:
+          - CodeRepoSpecified
+          - !Ref SagemakerCodeRepo
+          - !Ref AWS::NoValue
+      DirectInternetAccess: Enabled
+      LifecycleConfigName:  !GetAtt NotebookLifecycleConfig.NotebookInstanceLifecycleConfigName
+      PlatformIdentifier: notebook-al2-v2
+      RootAccess: Enabled
+      SecurityGroupIds:
+        - Fn::GetAtt:
+            - NotebookSecurityGroup
+            - GroupId
+      SubnetId: !Ref PublicSubnet1
+      VolumeSizeInGB: 50
+
+Outputs:
+  JupyterNotebook:
+      Value: !Join
+      - ''
+      - - https://
+        - !Ref 'AWS::Region'
+        - .console.aws.amazon.com/sagemaker/home?region=
+        - !Ref 'AWS::Region'
+        - '#/notebook-instances/openNotebook/'
+        - !GetAtt 'DaskNotebook.NotebookInstanceName'
+        - '?view=lab'
+  DaskECSClusterName:
+    Value: !Ref DaskCluster
+  DaskSchedulerServiceName:
+    Value: !GetAtt DaskSchedulerService.Name
+  DaskWorkerServiceName:
+    Value: 
+      Fn::If:
+        - EC2Compute
+        - !GetAtt DaskEC2WorkerService.Name
+        - !GetAtt DaskFargateWorkerService.Name
+  DaskSchedulerSecurityGroup:
+    Value: !Ref DaskSchedulerSecurityGroup
