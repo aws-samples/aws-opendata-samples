@@ -10,3 +10,5 @@ dependencies:
 - netcdf4
 - xarray
 - scipy
+- boto3
+- arm_pyart
