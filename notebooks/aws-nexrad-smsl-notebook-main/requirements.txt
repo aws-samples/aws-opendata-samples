@@ -1,0 +1,9 @@
+# requirements if you choose to use pip
+numpy
+matplotlib
+jupyter
+netCDF4
+xarray
+scipy
+boto3
+arm-pyart
