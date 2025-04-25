@@ -16,11 +16,11 @@ We encourage contributions from the community. If you would like to submit a new
 
 ## Contact
 
-If you found this repository helpful, have feedback, or would like to connect with the AWS Open Data team, please reach out to us at **opendata@amazon.com**.
+If you found this repository helpful, have feedback, or would like to connect with the AWS Open Data team, please reach out to us at opendata@amazon.com.
 
 ## Security
 
-See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information on how to report security issues.
+See [CONTRIBUTING](CONTRIBUTING.md) for more information on how to report security issues.
 
 ## License
 
