@@ -1,4 +1,4 @@
-# How to use data from AWS Open Data program in Amazon Bedrock
+![image](https://github.com/user-attachments/assets/f809fa0c-708b-4345-a2c3-ebc894855304)# How to use data from AWS Open Data program in Amazon Bedrock
 
 The [AWS Open Data Sponsorship Program](https://aws.amazon.com/opendata/open-data-sponsorship-program/) eliminates data acquisition barriers by hosting high-value datasets in the cloud, enabling researchers and analysts to focus on discovery and innovation rather than data management. When data is shared on [Amazon Web Services (AWS)](https://aws.amazon.com/), anyone can analyze it and build services on top of it using a broad range of compute and data analytics products, including [Amazon Elastic Compute Cloud (Amazon EC2)](https://aws.amazon.com/ec2/), [Amazon Athena](https://aws.amazon.com/athena/), [AWS Lambda](https://aws.amazon.com/lambda/), and [Amazon EMR](https://aws.amazon.com/emr/). AWS provides a catalog of publicly available datasets on AWS through the [Registry of Open Data on AWS](https://registry.opendata.aws/). The registry has over 650 datasets open to the public, such as government data, scientific research, life sciences, climate, satellite imagery, geospatial, and genomic data.
 
@@ -20,21 +20,21 @@ To perform the solution, you need to have the following prerequisites:
 Start with the Registry of Open Data on AWS:
 
 1.	On the [Registry of Open Data on AWS](https://registry.opendata.aws/) website, in the Search datasets bar, enter GHCN, as shown in the following screenshot.
-2.	
+
 ![image](https://github.com/user-attachments/assets/fc1b18a8-e469-4291-95b0-ae6d8e93363b)
 
 *Figure 1: Registry of Open Data on AWS with GHCN in the search datasets box*
 
-4.  Select the [NOAA Global Historical Climatology Network Daily (GHCN-D)](https://registry.opendata.aws/noaa-ghcn/) dataset to open the registry page.
-5.  Right click on the Browse Bucket link to open in a new window. This link will open a list of all the files and folders that are currently in the NOAA GHCN public bucket.
-6.  
+2.  Select the [NOAA Global Historical Climatology Network Daily (GHCN-D)](https://registry.opendata.aws/noaa-ghcn/) dataset to open the registry page.
+3.  Right click on the Browse Bucket link to open in a new window. This link will open a list of all the files and folders that are currently in the NOAA GHCN public bucket.
+  
 ![image](https://github.com/user-attachments/assets/5bf1eac6-8a6c-481b-a13a-9bd56a46a86c)
 
 *Figure 2: AWS S3 Explorer view of the noaa-ghcn-pds bucket*
 
-8.	Open the csv/ then by_year/ folders. Notice that GHCN data goes back to the year 1750! We start with a few of the oldest files to see what data we have available. Select the 1763.csv and 1764.csv files to download them.
-9.	Scroll to the bottom of the page and choose Next. Keep choosing Next until you reach the last page of data. As of this writing, page 6 will have the years 2012 through 2025. Select 2023.csv and 2024.csv to download them also.
-10.	Starting with the 1763.csv and 1764.csv files, open each one up in an application so you can view the data. 
+4.	Open the csv/ then by_year/ folders. Notice that GHCN data goes back to the year 1750! We start with a few of the oldest files to see what data we have available. Select the 1763.csv and 1764.csv files to download them.
+5.	Scroll to the bottom of the page and choose Next. Keep choosing Next until you reach the last page of data. As of this writing, page 6 will have the years 2012 through 2025. Select 2023.csv and 2024.csv to download them also.
+6.	Starting with the 1763.csv and 1764.csv files, open each one up in an application so you can view the data. 
 
 ### File and data format
 knowledge base. You need to understand what is in the file and how it’s referenced, so that you can ask questions of the knowledge base and get appropriate answers. 
@@ -58,5 +58,25 @@ b.	Choose **Upload**, and wait for both files to be copied into the bucket, as s
 
 *Figure 4: Files 1764.csv and 1763.csv in **Files and folders***
 
+### 1760s knowledge base
+Using the data in the private bucket, create your first knowledge base. To use the FMs in Amazon Bedrock, you need to request access first. Follow these steps to request access and create a knowledge base:
+
+1.	On the [Amazon Bedrock console](https://console.aws.amazon.com/bedrock) in the navigation pane, under **Bedrock configurations** in the left navigation pane, choose Model access.
+2.	On the Model access page, choose **Modify model access**. 
+3.	Select the check box next to **Titan Text G1 - Premier, Titan Embeddings G1 - Text,** and **Nova Pro** and choose **Next**, then **Submit** to request access to these models.
+4.	Under **Builder tools**, select **Knowledge Bases**. 
+5.	Choose **Create** and select **Knowledge Base with vector store**. We use vector store for this walkthrough, which uses [Amazon OpenSearch Serverless](https://aws.amazon.com/opensearch-service/features/serverless/), but there are other options you can explore at [Retrieve data and generate AI responses with Amazon Bedrock Knowledge Bases in the Amazon Bedrock User Guide](https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base.html).
+6.	Name the knowledge base `YOURNAME-GHCN-1763-1764`, replacing `YOURNAME` with your name. Leave the rest of the page as the default and choose **Next**.
+7.	Under **Data source**, change the following:
+a.	For **Data source location**, leave as **This AWS account**.
+b.	For **S3 URI**, choose **Browse** and select the `YOURNAME-ghcn-1763-1764` bucket that you created earlier.
+8.	Leave the rest of the page as defaults, and click **Next**.
+9.	Here will need to select an Embeddings Model to use, so click **Select model** and choose **Titan Text Embeddings V2** and then **Apply**.
+10.	Leave the rest of the page as the default and choose **Next**.
+11.	Review your selections and choose **Create Knowledge Base** when you’re ready.
+
+This process will take a few minutes to prepare the vector database in Amazon OpenSearch Serverless. Note that the Amazon OpenSearch Serverless collection incurs a cost even with the small amount of data that used in this walkthrough. It’s recommended to set up a [Cost Explorer budget](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/monitor_estimated_charges_with_cloudwatch.html) or alarm to watch your costs.
+
+After the vector database has been created, you’ll receive a notification that “Amazon OpenSearch Serverless vector database is ready,” and then the knowledge base will be created. You now have an empty vector store and need to fill it with data. To do this, you need to sync the data:
 
 
