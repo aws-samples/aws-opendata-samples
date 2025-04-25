@@ -100,7 +100,7 @@ We know the answer from the file is 9, as we showed earlier. The knowledge base 
 
 3.	Select **Show details >** to learn how the knowledge base derived its answer. The metadata tells you the file (source-uri) where Amazon Bedrock found information to form an answer. The **Source chunk** shows the actual chunk of data used and will look like this:
 
-`, ITE00100554,17630124,TMIN,10,,,E, ITE00100554,17630125,TMAX,24,,,E, ITE00100554,17630125,TMIN,-2,,,E, ITE00100554,17630126,TMAX,6,,,E, ITE00100554,17630126,TMIN,-22,,,E, ITE00100554,17630127,TMAX,1,,,E, ITE00100554,17630127,TMIN,-27,,,E, ITE00100554,17630128,TMAX,-5,,,E, ITE00100554,17630128,TMIN,-33,,,E, ITE00100554,17630129,TMAX,-1,,,E, ITE00100554,17630129,TMIN,-29,,,E, ITE00100554,17630130,TMAX,4,,,E, ITE00100554,17630130,TMIN,-16,,,E, **ITE00100554,17630131,TMAX,9,,,E,** ITE00100554,17630131,TMIN,-21,,,E, ITE00100554,17630201,TMAX,19,,,E, ITE00100554,17630201,TMIN,-11,,,E, ITE00100554,17630202,TMAX,28,,,E, ITE00100554,17630202,TMIN,-2,,,E,`
+`, ITE00100554,17630124,TMIN,10,,,E, ITE00100554,17630125,TMAX,24,,,E, ITE00100554,17630125,TMIN,-2,,,E, ITE00100554,17630126,TMAX,6,,,E, ITE00100554,17630126,TMIN,-22,,,E, ITE00100554,17630127,TMAX,1,,,E, ITE00100554,17630127,TMIN,-27,,,E, ITE00100554,17630128,TMAX,-5,,,E, ITE00100554,17630128,TMIN,-33,,,E, ITE00100554,17630129,TMAX,-1,,,E, ITE00100554,17630129,TMIN,-29,,,E, ITE00100554,17630130,TMAX,4,,,E, ITE00100554,17630130,TMIN,-16,,,E, ITE00100554,17630131,TMAX,9,,,E, ITE00100554,17630131,TMIN,-21,,,E, ITE00100554,17630201,TMAX,19,,,E, ITE00100554,17630201,TMIN,-11,,,E, ITE00100554,17630202,TMAX,28,,,E, ITE00100554,17630202,TMIN,-2,,,E,`
 
 4.	The following chunk is our answer:
 
@@ -126,3 +126,119 @@ To avoid incurring future charges, you need to delete the knowledge base when yo
   - Return to the Amazon Bedrock tab to complete the last step of deleting the knowledge base, leaving **Delete the vector store** unchecked.
 3.	Choose **Delete** and enter `delete` in the window.
 
+![image](https://github.com/user-attachments/assets/3bf0cf3a-0b62-4966-b91c-6d9a96f9d842)
+
+*Figure 7: Delete the GHCN-1763-1764 knowledge base*
+
+## Part 2: Solution walkthrough
+In this section, you can use what you learned in Part 1 to use a knowledge base with a dataset in the Registry of Open Data directly. You won’t copy over a few files; instead, you will point Amazon Bedrock to the public bucket. Follow these steps:
+
+1.	On the [Registry of Open Data on AWS](https://registry.opendata.aws/), in the **Search datasets** bar, enter `GHCN`.
+2.	Select the [NOAA Global Historical Climatology Network Daily (GHCN-D)](https://registry.opendata.aws/noaa-ghcn/) dataset to open the registry page.
+  - Note the [Amazon Simple Notification Service (Amazon SNS)](https://aws.amazon.com/sns/) topic on this page: 
+
+`arn:aws:sns:us-east-1:123901341784:NewGHCNObject`
+
+  - Select the account ID portion (`123901341784`) and leave this window open in a separate tab because you will need the account ID later.
+3.	Right click on the **Browse Bucket** link to open in a new window. This link will open a list of all the files and folders that are currently in the NOAA GHCN public bucket.
+
+For this walkthrough, you need to limit the knowledge base to a specific folder, so that you use only a subset of the entire dataset. This will limit the costs that you incur with this demo. If you decide to use this dataset for more than testing or development purposes, you might want to use the entire bucket.
+
+Note that NOAA has been working on performance improvements for GHCN data and the prefixes (or folders) may change.
+
+4. Open the **csv/** then **by_year/** folders like you did in Part 1. This time, however, you will use all of the by_year folder. The bucket name and folder path will be: 
+
+`s3://noaa-ghcn-pds/csv/by_year/`
+
+5.	Navigate to the very last entry in the bucket using the numbered links at the bottom right of the window. As of this writing, if you select **6**, you will see files for the years 2012-2025.csv.
+6.	Select **2024.csv** and **2023.csv** to download them and save them for later. We will use these files to query the knowledge base initially.
+
+### GHCN-by-year knowledge base
+Using the data in the public AWS Open Data bucket, you will now create a new knowledge base that you can update, using the Sync command, whenever you want to update the knowledge base with new data from the public AWS Open Data bucket.
+
+1.	On the Amazon Bedrock console, choose **Create** and select **Knowledge base with vector store**.
+2.	Name the knowledge base `YOURNAME-GHCN-by-year`, replacing `YOURNAME` with your name. You can leave the rest of the page as defaults and choose **Next**.
+3.	Under **Data source**, make the following changes:
+  - For **Data source location**, change to **Other AWS account**.
+  - For **Account ID**, enter `123901341784`.  You can copy and paste this from your browser window.
+  - For **S3 URI**, enter: `s3://noaa-ghcn-pds/csv/by_year/`.
+
+![image](https://github.com/user-attachments/assets/9f1b7896-6425-44b6-bc47-674e01578d72)
+
+*Figure 8: The Configure data source page shown with **Account ID** and **S3 URI** filled in*
+
+4.	Leave the rest of the page as defaults and choose **Next**.
+5.	To select an embeddings model, choose **Select model** and choose **Titan Text Embeddings V2** and then **Apply**.
+6.	Leave the rest of the page as defaults and choose **Next**.
+7.	Review your selections and choose **Create Knowledge Base** when you’re ready.
+
+It will take a few minutes to prepare the vector database in Amazon OpenSearch Serverless. Amazon OpenSearch Serverless collection incurs a cost. In this example, you’re using hundreds of files in the public GHCN bucket. It’s recommended to set up a Cost Explorer budget or alarm to watch your costs.
+
+After the vector database has been created, you will see a notification that “Amazon OpenSearch Serverless vector database is ready,” and then the knowledge base will be created. You now have an empty vector store and need to fill it with data. To do this, you need to sync the data: 
+
+1.	 Under **Data source**, select the data source you created, as shown in the following screenshot.
+
+![image](https://github.com/user-attachments/assets/bbcddc61-890d-4842-abe9-5f38a7aac4f3)
+
+*Figure 9: GHCN-by-year knowledge base ready to sync with selected data source*
+
+2.	To start adding data to the vector store, choose **Sync**. It might take a few hours to parse all the files into the vector store. While you wait for the sync to be completed, you can download a few files to learn what you can ask the knowledge base when it’s completed the sync.
+
+When the sync is completed, follow these steps to test the knowledge base: 
+
+1.	On the Amazon Bedrock console, choose **Knowledge Bases** under **Builder Tools** and select the `YOURNAME-GHCN-by-year` knowledge base.
+2.	Under **Test Knowledge Base**, choose **Select model** to select a model to use for the test. You can choose **Nova Lite** and then choose **Apply**.
+
+Now, you’re ready to ask questions. Here are some examples:
+
+Question: `What was ASN00007139 TMAX in 17500301?`
+
+Answer: `The TMAX value for ASN00007139 on 17500301 is 424`
+
+Notice the **Show details >** link next to the response from the bot. Select this link to learn what file chunk(s) were used to generate the response.
+
+You can also ask more general questions such as:
+
+Question: `What types of data are in this knowledge base?`
+
+Answer: `Based on the retrieved results, the knowledge base contains data related to precipitation (PRCP), maximum temperature (TMAX), and minimum temperature (TMIN)`
+
+Now that you know what data is there and how to use it with the knowledge base, you can ask questions across the entire dataset, such as:
+
+Question: `What was highest SNWD recorded for US1AKFN0032?`
+
+Answer: `The highest SNWD recorded for US1AKFN0032 is 559.0`
+
+This value is the snow depth in Fairbanks, Alaska.
+
+Find a station near you using [NOAA GHCN documentation](https://github.com/awslabs/open-data-docs/tree/main/docs/noaa/noaa-ghcn) and see what values you can find! Optionally, you can delete the knowledge base when you are done to save on costs.
+
+### Cleanup
+To avoid incurring future charges, you need to delete the knowledge base when you are done. To delete the knowledge base:
+
+1.	On the Amazon Bedrock console, choose **Knowledge Bases** under **Builder Tools** and select the `YOURNAME-GHCN-by-year` knowledge base.
+2.	If you chose to retain the vector store in advanced settings when you created the knowledge base, you need to find the Amazon OpenSearch Serverless index name before you delete the knowledge base. 
+  - Scroll down to **Vector database** and make note of the **Collection ARN:**
+
+`arn:aws:aoss:REGION:AWSACCOUNTID:collection/UUID`, where `UUID` will be a unique identifier for your collection such as `ea50z3iuyaavwy8bymq4`
+
+  - On the Amazon OpenSearch Service console in a new tab or browser window, choose **Collections** under **Serverless** and open the collection you created as part of this walkthrough.
+  - Verify that the **Collection ARN** matches the collection ARN that you saw for the vector database: 
+
+`arn:aws:aoss:REGION:AWSACCOUNTID:collection/UUID `
+
+  - Choose **Delete collection** to delete the vector database, and enter `confirm` in the dialog box.
+  - Return to the Amazon Bedrock tab to complete the last step of deleting the knowledge base, leaving **Delete the vector store** unchecked.
+3.	Choose **Delete** and enter `delete` in the window. 
+
+## Conclusion
+NOAA's Data Dissemination Program shares environmental data for five key purposes. First, it provides critical information for weather forecasting, emergency response, and transportation safety in maritime and aviation sectors. Second, it enables scientists to conduct climate studies, environmental analysis, and trend modeling. Third, it supports economic decision-making across industries, helping agriculture plan harvests, fishing fleets optimize routes, and tourism businesses adapt to weather conditions. Fourth, it fulfills federal mandates for public data access and strengthens interagency collaboration. Fifth, it supports international partnerships through shared weather monitoring and environmental research. This program operates on a fundamental principle: environmental data collected with public funds must remain freely available to advance science and benefit society.
+
+The Registry of Open Data on AWS contains over 650 datasets available to the public that can be used to add additional context to a foundation model. Amazon Bedrock now supports using public datasets in the Registry of Open Data on AWS so you don’t have to maintain a copy of the dataset. Check out the registry to learn if there are datasets available for you to use with your next project.
+
+## Resources
+•	[Turning data into a knowledge base](https://docs.aws.amazon.com/bedrock/latest/userguide/kb-how-data.html) in the Amazon Bedrock User Guide
+•	[Supported datatypes in Amazon Bedrock](https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base-ds.html) in the Amazon Bedrock User Guide
+•	[Learn more about Open Data on AWS](https://aws.amazon.com/opendata)
+•	[Find data in the Registry of Open Data on AWS](https://registry.opendata.aws/)
+•	[Learn more about the Amazon Sustainability Data Initiative](https://exchange.aboutamazon.com/data-initiative)
