@@ -68,8 +68,8 @@ Using the data in the private bucket, create your first knowledge base. To use t
 5.	Choose **Create** and select **Knowledge Base with vector store**. We use vector store for this walkthrough, which uses [Amazon OpenSearch Serverless](https://aws.amazon.com/opensearch-service/features/serverless/), but there are other options you can explore at [Retrieve data and generate AI responses with Amazon Bedrock Knowledge Bases in the Amazon Bedrock User Guide](https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base.html).
 6.	Name the knowledge base `YOURNAME-GHCN-1763-1764`, replacing `YOURNAME` with your name. Leave the rest of the page as the default and choose **Next**.
 7.	Under **Data source**, change the following:
-a.	For **Data source location**, leave as **This AWS account**.
-b.	For **S3 URI**, choose **Browse** and select the `YOURNAME-ghcn-1763-1764` bucket that you created earlier.
+  - For **Data source location**, leave as **This AWS account**.
+  - For **S3 URI**, choose **Browse** and select the `YOURNAME-ghcn-1763-1764` bucket that you created earlier.
 8.	Leave the rest of the page as defaults, and click **Next**.
 9.	Here will need to select an Embeddings Model to use, so click **Select model** and choose **Titan Text Embeddings V2** and then **Apply**.
 10.	Leave the rest of the page as the default and choose **Next**.
@@ -113,16 +113,16 @@ To avoid incurring future charges, you need to delete the knowledge base when yo
 
 1.	On the Amazon Bedrock console under **Builder tools**, select **Knowledge Bases** and select the `YOURNAME-GHCN-1763-1764` knowledge base.
 2.	If you chose to retain the vector store in advanced settings when you created the knowledge base, you will need to find the Amazon OpenSearch index name before you delete the knowledge base. 
-  a.	Scroll down to **Vector database** and make note of the **Collection ARN:**
+  - Scroll down to **Vector database** and make note of the **Collection ARN:**
 
 `arn:aws:aoss:REGION:AWSACCOUNTID:collection/UUID`, where `UUID` will be a unique identifier for your collection, such as `ea50z3iuyaavwy8bymq4`
 
-  b.	On the OpenSearch Service console in a new tab or browser window, choose **Collections** under **Serverless** and select the collection you created in this walkthrough to open it.
-  c.	Verify that the **Collection ARN** matches the collection [Amazon Resource Name (ARN)](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference-arns.html) that you received for the vector database: 
+  - On the OpenSearch Service console in a new tab or browser window, choose **Collections** under **Serverless** and select the collection you created in this walkthrough to open it.
+  - Verify that the **Collection ARN** matches the collection [Amazon Resource Name (ARN)](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference-arns.html) that you received for the vector database: 
 
 `arn:aws:aoss:REGION:AWSACCOUNTID:collection/UUID`
 
-  d.	To delete the vector database, choose **Delete collection** and enter `confirm` in the dialog box.
-  e.	Return to the Amazon Bedrock tab to complete the last step of deleting the knowledge base, leaving **Delete the vector store** unchecked.
+  - To delete the vector database, choose **Delete collection** and enter `confirm` in the dialog box.
+  - Return to the Amazon Bedrock tab to complete the last step of deleting the knowledge base, leaving **Delete the vector store** unchecked.
 3.	Choose **Delete** and enter `delete` in the window.
 
