@@ -1,4 +1,4 @@
-![image](https://github.com/user-attachments/assets/f809fa0c-708b-4345-a2c3-ebc894855304)# How to use data from AWS Open Data program in Amazon Bedrock
+# How to use data from AWS Open Data program in Amazon Bedrock
 
 The [AWS Open Data Sponsorship Program](https://aws.amazon.com/opendata/open-data-sponsorship-program/) eliminates data acquisition barriers by hosting high-value datasets in the cloud, enabling researchers and analysts to focus on discovery and innovation rather than data management. When data is shared on [Amazon Web Services (AWS)](https://aws.amazon.com/), anyone can analyze it and build services on top of it using a broad range of compute and data analytics products, including [Amazon Elastic Compute Cloud (Amazon EC2)](https://aws.amazon.com/ec2/), [Amazon Athena](https://aws.amazon.com/athena/), [AWS Lambda](https://aws.amazon.com/lambda/), and [Amazon EMR](https://aws.amazon.com/emr/). AWS provides a catalog of publicly available datasets on AWS through the [Registry of Open Data on AWS](https://registry.opendata.aws/). The registry has over 650 datasets open to the public, such as government data, scientific research, life sciences, climate, satellite imagery, geospatial, and genomic data.
 
@@ -79,4 +79,50 @@ This process will take a few minutes to prepare the vector database in Amazon Op
 
 After the vector database has been created, you’ll receive a notification that “Amazon OpenSearch Serverless vector database is ready,” and then the knowledge base will be created. You now have an empty vector store and need to fill it with data. To do this, you need to sync the data:
 
+1.	Under **Data source**, select the data source you created, as shown in the following screenshot.
+
+![image](https://github.com/user-attachments/assets/c26babd8-4362-4ebb-87b9-63a5f3bc1ce0)
+
+*Figure 5: GHCN-1763-1764 knowledge base ready to sync with the selected data source*
+
+2.	To start adding data to the vector store, choose **Sync**. It should only take a few moments because there are only two files in your private bucket. 
+
+Because we know a few values in the two files, we can open them locally and ask questions that we already know the answer to. Doing so will verify that the knowledge base is both using the data in the files and using the data correctly. To test your knowledge base, follow these steps:
+
+1.	To select a model to use for the test, under **Test Knowledge Base**, choose **Select model**. Choose **Nova Lite** and then choose **Apply**. There are other models that you can use that will return similar answers.
+2.	To ask the knowledge base a question, paste the following into the Enter your message here box and then choose Run.
+
+`What was the TMAX on 17630131?`
+
+We know the answer from the file is 9, as we showed earlier. The knowledge base will provide the following answer: 
+
+`The TMAX on 17630131 was 9 degrees`
+
+3.	Select **Show details >** to learn how the knowledge base derived its answer. The metadata tells you the file (source-uri) where Amazon Bedrock found information to form an answer. The **Source chunk** shows the actual chunk of data used and will look like this:
+
+`, ITE00100554,17630124,TMIN,10,,,E, ITE00100554,17630125,TMAX,24,,,E, ITE00100554,17630125,TMIN,-2,,,E, ITE00100554,17630126,TMAX,6,,,E, ITE00100554,17630126,TMIN,-22,,,E, ITE00100554,17630127,TMAX,1,,,E, ITE00100554,17630127,TMIN,-27,,,E, ITE00100554,17630128,TMAX,-5,,,E, ITE00100554,17630128,TMIN,-33,,,E, ITE00100554,17630129,TMAX,-1,,,E, ITE00100554,17630129,TMIN,-29,,,E, ITE00100554,17630130,TMAX,4,,,E, ITE00100554,17630130,TMIN,-16,,,E, **ITE00100554,17630131,TMAX,9,,,E,** ITE00100554,17630131,TMIN,-21,,,E, ITE00100554,17630201,TMAX,19,,,E, ITE00100554,17630201,TMIN,-11,,,E, ITE00100554,17630202,TMAX,28,,,E, ITE00100554,17630202,TMIN,-2,,,E,`
+
+4.	The following chunk is our answer:
+
+`ITE00100554, 17630131, TMAX,9,,,E,`
+
+Try a few more questions to get an idea of how the knowledge base parses information and derives answers.
+
+### Cleanup
+To avoid incurring future charges, you need to delete the knowledge base when you are done. To delete the knowledge base:
+
+1.	On the Amazon Bedrock console under **Builder tools**, select **Knowledge Bases** and select the `YOURNAME-GHCN-1763-1764` knowledge base.
+2.	If you chose to retain the vector store in advanced settings when you created the knowledge base, you will need to find the Amazon OpenSearch index name before you delete the knowledge base. 
+a.	Scroll down to **Vector database** and make note of the **Collection ARN:**
+
+`arn:aws:aoss:REGION:AWSACCOUNTID:collection/UUID`, where `UUID` will be a unique identifier for your collection, such as `ea50z3iuyaavwy8bymq4`
+
+b.	On the OpenSearch Service console in a new tab or browser window, choose **Collections** under **Serverless** and select the collection you created in this walkthrough to open it.
+c.	Verify that the **Collection ARN** matches the collection [Amazon Resource Name (ARN)](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference-arns.html) that you received for the vector database: 
+
+`arn:aws:aoss:REGION:AWSACCOUNTID:collection/UUID`
+
+d.	To delete the vector database, choose **Delete collection** and enter `confirm` in the dialog box.
+e.	Return to the Amazon Bedrock tab to complete the last step of deleting the knowledge base, leaving **Delete the vector store** unchecked.
+3.	Choose **Delete** and enter `delete` in the window.
 
