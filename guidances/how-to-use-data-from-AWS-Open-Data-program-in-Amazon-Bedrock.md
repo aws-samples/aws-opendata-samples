@@ -51,8 +51,8 @@ By viewing the file locally, you can observe that Station (ID) ITE00100554 had a
 1.	On the [Amazon S3 console](https://console.aws.amazon.com/s3/), choose **Create bucket** and name the bucket `YOURNAME-ghcn-1763-1764`, replacing `YOURNAME` with your last name to make the bucket unique. Leave everything else on the page as the default and choose **Create bucket** at the bottom of the page.
 2.	After the bucket is created, select it to view the bucket contents (it will be empty). 
 3.	Drag and drop the 1763.csv and 1764.csv files into the bucket and choose **Upload**. Wait for both files to be copied into the bucket, as shown in the following screenshot.
-  a.	Or use the Upload button. You can drag and drop the 1763.csv and 1764.csv files or choose **Add files** to add them.
-  b.	Choose **Upload**, and wait for both files to be copied into the bucket, as shown in the following screenshot.
+  - Or use the Upload button. You can drag and drop the 1763.csv and 1764.csv files or choose **Add files** to add them.
+  - Choose **Upload**, and wait for both files to be copied into the bucket, as shown in the following screenshot.
 
 ![image](https://github.com/user-attachments/assets/bfc0b066-f870-4161-a398-9b218e9a6e53)
 
