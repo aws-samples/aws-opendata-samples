@@ -238,7 +238,14 @@ The Registry of Open Data on AWS contains over 650 datasets available to the pub
 
 ## Resources
 •	[Turning data into a knowledge base](https://docs.aws.amazon.com/bedrock/latest/userguide/kb-how-data.html) in the Amazon Bedrock User Guide
+
 •	[Supported datatypes in Amazon Bedrock](https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base-ds.html) in the Amazon Bedrock User Guide
+
 •	[Learn more about Open Data on AWS](https://aws.amazon.com/opendata)
+
 •	[Find data in the Registry of Open Data on AWS](https://registry.opendata.aws/)
+
 •	[Learn more about the Amazon Sustainability Data Initiative](https://exchange.aboutamazon.com/data-initiative)
+
+View this as the original blogpost: [How to use data from the AWS Open Data program in Amazon Bedrock](https://aws.amazon.com/blogs/publicsector/how-to-use-data-from-the-aws-open-data-program-in-amazon-bedrock/)
+
