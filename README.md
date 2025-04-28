@@ -11,6 +11,7 @@ The repo includes:
 ### 📘 Featured Guidance
 - [Configuring Public Data Access with Amazon S3 and Amazon SNS](guidances/configuring-public-data-access-with-S3-and-SNS.md)
 - [Monitoring Amazon S3 Dataset Usage with Server Access Logs and CloudWatch Metrics](guidances/monitoring-Amazon-S3-dataset-usage-with-server-access-logs-and-CloudWatch-Metrics.md)
+- [How to use data from AWS Open Data program in Amazon Bedrock](guidances/how-to-use-data-from-AWS-Open-Data-program-in-Amazon-Bedrock.md)
 
 We encourage contributions from the community. If you would like to submit a new sample, project, notebook, or guidance, please review our [CONTRIBUTING](CONTRIBUTING.md) guidelines.
 
