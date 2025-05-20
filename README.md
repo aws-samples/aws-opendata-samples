@@ -11,6 +11,7 @@ The repo includes:
 ### 📘 Featured Guidance
 - [Migrating Data to Amazon S3 with Rclone](guidances/migrating-data-to-S3-with-rclone.md)
 - [How to use data from AWS Open Data program in Amazon Bedrock](guidances/how-to-use-data-from-AWS-Open-Data-program-in-Amazon-Bedrock.md)
+- [Manually Onboard to the Open Data Program and Set Up Update Notifications](guidances/configuring-public-data-access-with-S3-and-SNS.md)
 
 We encourage contributions from the community. If you would like to submit a new sample, project, notebook, or guidance, please review our [CONTRIBUTING](CONTRIBUTING.md) guidelines.
 

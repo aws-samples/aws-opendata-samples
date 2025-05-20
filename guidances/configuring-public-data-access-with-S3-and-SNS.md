@@ -1,4 +1,4 @@
-# Configuring Public Data Access and Notifications with Amazon S3 and Amazon SNS
+# Manually Onboard to the Open Data Program and Set Up Update Notifications
 
 ## Overview
 
