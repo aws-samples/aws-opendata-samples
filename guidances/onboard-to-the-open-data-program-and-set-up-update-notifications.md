@@ -1,4 +1,4 @@
-# Manually Onboard to the Open Data Program and Set Up Update Notifications
+# Onboard to the Open Data Program and Set Up Update Notifications
 
 ## Overview
 
