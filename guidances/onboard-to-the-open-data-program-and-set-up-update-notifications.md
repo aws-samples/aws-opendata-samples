@@ -83,17 +83,32 @@ Before starting:
 ## Step 3: Create an SNS Topic
 
 1. Open the [Amazon SNS console](https://console.aws.amazon.com/sns/).
+
+   ![Choose region](./images/onboard-to-the-open-data-program-and-set-up-update-notifications/search-SNS.png)
 2. From the left navigation pane, choose **Topics**, then select **Create topic**.
+
+   ![Choose region](./images/onboard-to-the-open-data-program-and-set-up-update-notifications/create-topic.png)
 3. For **Type**, select **Standard**.
+
+   ![Choose region](./images/onboard-to-the-open-data-program-and-set-up-update-notifications/choose-standard.png)
 4. In the **Name** field, provide a name for your topic (e.g., `my-dataset-object_created`).
+
+   ![Choose region](./images/onboard-to-the-open-data-program-and-set-up-update-notifications/add-topic-name.png)
 5. Leave the remaining settings as default and choose **Create topic**.
 
+   ![Choose region](./images/onboard-to-the-open-data-program-and-set-up-update-notifications/click-create-topic.png)
 ---
 
 ## Step 4: Update the SNS Topic's Access Policy
 
 1. In the SNS console, open the topic you created and take note of its **ARN**.
+
+   ![Choose region](./images/onboard-to-the-open-data-program-and-set-up-update-notifications/copy-topic-arn.png)
 2. Choose **Edit**, then expand **Access Policy – optional**.
+
+   ![Choose region](./images/onboard-to-the-open-data-program-and-set-up-update-notifications/click-edit.png)
+
+   ![Choose region](./images/onboard-to-the-open-data-program-and-set-up-update-notifications/click-access-policy.png)
 3. Replace the default access policy with the following JSON to allow the S3 bucket to publish events to this topic. Update `<SNS-topic-ARN>` , `<aws-account-id>`, and `<my-dataset-bucket>` with your SNS topic ARN, AWS account ID, and S3 bucket name, respectively.
 ```json
 {
@@ -142,15 +157,27 @@ Before starting:
 
 4. Select **Save changes**.
 
+   ![Choose region](./images/onboard-to-the-open-data-program-and-set-up-update-notifications/save-changes.png)
+
 ---
 
 ## Step 5: Configure S3 Event Notifications
 
 1. In the S3 console, select your bucket and go to the **Properties** tab.
+
+   ![Choose region](./images/onboard-to-the-open-data-program-and-set-up-update-notifications/click-properties.png)
 2. Scroll to **Event notifications**, then choose **Create event notification**.
+
+   ![Choose region](./images/onboard-to-the-open-data-program-and-set-up-update-notifications/create-EN.png)
 3. Name the event (e.g., `ObjectCreatedNotification`).
+
+   ![Choose region](./images/onboard-to-the-open-data-program-and-set-up-update-notifications/EN-name.png)
 4. For **Event types**, select **All object create events** to trigger the notification whenever a new object is added to the bucket.
+
+   ![Choose region](./images/onboard-to-the-open-data-program-and-set-up-update-notifications/all-object-create.png)
 5. For **Destination**, choose **SNS topic**, then select the one you created.
+
+   ![Choose region](./images/onboard-to-the-open-data-program-and-set-up-update-notifications/choose-destination.png)
 6. Select **Save changes**.
 
 > ✅ Your S3 bucket is now configured to publish object creation events to an SNS topic.
