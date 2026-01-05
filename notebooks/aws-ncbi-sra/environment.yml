@@ -1,0 +1,209 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: This runs Amazon SageMaker for a Jupyter notebook to read and plot Sequence Read Archive Data from FASTQ files.
+
+Resources:
+
+    # KMS Key for encryption - Educational security model with customer-managed keys
+    # Production: Consider additional key policies and cross-region replication
+    SageMakerKMSKey:
+        Type: AWS::KMS::Key
+        Properties:
+            Description: KMS Key for Amazon SageMaker notebook encryption
+            EnableKeyRotation: true
+            KeyPolicy:
+                Statement:
+                    - Effect: Allow
+                      Principal:
+                          AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+                      Action: "kms:*"
+                      Resource: "*"
+
+    SageMakerKMSKeyAlias:
+        Type: AWS::KMS::Alias
+        Properties:
+            AliasName: alias/sagemaker-opendata-sra
+            TargetKeyId: !Ref SageMakerKMSKey
+
+    # IAM Policy for SRA data access - Least privilege for educational use
+    # Production: Add condition keys and more restrictive resource policies
+    SRADataAccessPolicy:
+        Type: AWS::IAM::ManagedPolicy
+        Properties:
+            PolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                    - Effect: "Allow"
+                      Action:
+                          - "s3:GetObject"
+                          - "s3:ListBucket"
+                          - "s3:ListBucketVersions"
+                      Resource:
+                          - "arn:aws:s3:::sra-pub-src-1"
+                          - "arn:aws:s3:::sra-pub-src-1/*"
+                    - Effect: "Allow"
+                      Action:
+                          - "s3:GetObject"
+                          - "s3:PutObject"
+                          - "s3:DeleteObject"
+                          - "s3:ListBucket"
+                          - "s3:ListBucketVersions"
+                          - "s3:DeleteObjectVersion"
+                      Resource:
+                          - !Sub "arn:aws:s3:::${AWS::AccountId}-opendata-sra-bucket"
+                          - !Sub "arn:aws:s3:::${AWS::AccountId}-opendata-sra-bucket/*"
+                          - !Sub "arn:aws:s3:::${AWS::AccountId}-opendata-sra-logs"
+                          - !Sub "arn:aws:s3:::${AWS::AccountId}-opendata-sra-logs/*"
+ 
+    ExecutionRole: 
+        Type: "AWS::IAM::Role"
+        Properties: 
+          AssumeRolePolicyDocument: 
+            Version: "2012-10-17"
+            Statement: 
+              - 
+                Effect: "Allow"
+                Principal: 
+                  Service: 
+                    - "sagemaker.amazonaws.com"
+                Action: 
+                  - "sts:AssumeRole"
+          Path: "/"
+          ManagedPolicyArns:
+              - !Ref SRADataAccessPolicy
+
+    NotebookLifecycleConfig:
+        Type: AWS::SageMaker::NotebookInstanceLifecycleConfig
+        Properties:
+            OnCreate:
+            - Content:
+                Fn::Base64: |
+                  #!/bin/sh
+
+                  set -e
+                  cat > /home/ec2-user/setup.sh << EOF
+                  #!/bin/bash
+                  sleep 10
+                  #pip install Bio
+                  echo "Updating Jupyter config options"
+                  sed -i.bak 's/^#c.NotebookApp.iopub_data_rate_limit.*$/c.NotebookApp.iopub_data_rate_limit = 1.0e10/' ~/.jupyter/jupyter_notebook_config.py
+                  echo "Finished!"
+                  EOF
+              
+                  chown ec2-user:ec2-user /home/ec2-user/setup.sh
+                  chmod +x /home/ec2-user/setup.sh
+
+                  sudo -u ec2-user -i nohup /home/ec2-user/setup.sh >/home/ec2-user/output.log 2>&1 &
+
+
+    NotebookRepository:
+        Type: AWS::SageMaker::CodeRepository
+        Properties:
+            GitConfig:
+                RepositoryUrl: "https://github.com/aws-samples/aws-opendata-samples"
+                Branch: "main"
+
+    # Amazon SageMaker Notebook Instance - Educational configuration with direct internet access
+    # Direct internet access enables SRA data downloads - see README Security section
+    # Production: Deploy in VPC with private subnets and NAT Gateway
+    NotebookInstance:
+        Type: "AWS::SageMaker::NotebookInstance"
+        Properties:
+            NotebookInstanceName: opendata-sra-notebook
+            InstanceType: "ml.t3.medium"
+            DefaultCodeRepository: !GetAtt NotebookRepository.CodeRepositoryName
+            RoleArn: !GetAtt ExecutionRole.Arn
+            LifecycleConfigName: !GetAtt NotebookLifecycleConfig.NotebookInstanceLifecycleConfigName
+            KmsKeyId: !Ref SageMakerKMSKey
+            InstanceMetadataServiceConfiguration:
+                MinimumInstanceMetadataServiceVersion: "2"
+            
+    # Amazon S3 Bucket with educational security controls - AES256 encryption, versioning, logging
+    # Production: Consider KMS encryption, Object Lock, and cross-region replication
+    S3Bucket:
+        Type: AWS::S3::Bucket
+        Properties:
+            BucketName: !Sub "${AWS::AccountId}-opendata-sra-bucket"
+            BucketEncryption:
+                ServerSideEncryptionConfiguration:
+                    - ServerSideEncryptionByDefault:
+                          SSEAlgorithm: AES256
+            VersioningConfiguration:
+                Status: Enabled
+            PublicAccessBlockConfiguration:
+                BlockPublicAcls: true
+                BlockPublicPolicy: true
+                IgnorePublicAcls: true
+                RestrictPublicBuckets: true
+            LoggingConfiguration:
+                DestinationBucketName: !Ref S3LoggingBucket
+                LogFilePrefix: access-logs/
+
+    S3LoggingBucket:
+        Type: AWS::S3::Bucket
+        Properties:
+            BucketName: !Sub "${AWS::AccountId}-opendata-sra-logs"
+            BucketEncryption:
+                ServerSideEncryptionConfiguration:
+                    - ServerSideEncryptionByDefault:
+                          SSEAlgorithm: AES256
+            VersioningConfiguration:
+                Status: Enabled
+            PublicAccessBlockConfiguration:
+                BlockPublicAcls: true
+                BlockPublicPolicy: true
+                IgnorePublicAcls: true
+                RestrictPublicBuckets: true
+
+    # SSL Enforcement Policies - Require HTTPS for all Amazon S3 operations
+    # Educational and production security requirement - prevents data interception
+    S3BucketSSLPolicy:
+        Type: AWS::S3::BucketPolicy
+        Properties:
+            Bucket: !Ref S3Bucket
+            PolicyDocument:
+                Version: '2012-10-17'
+                Statement:
+                    - Sid: DenyInsecureConnections
+                      Effect: Deny
+                      Principal: "*"
+                      Action: "s3:*"
+                      Resource: 
+                          - !GetAtt S3Bucket.Arn
+                          - !Sub "${S3Bucket.Arn}/*"
+                      Condition:
+                          Bool:
+                              "aws:SecureTransport": "false"
+
+    S3LoggingBucketSSLPolicy:
+        Type: AWS::S3::BucketPolicy
+        Properties:
+            Bucket: !Ref S3LoggingBucket
+            PolicyDocument:
+                Version: '2012-10-17'
+                Statement:
+                    - Sid: DenyInsecureConnections
+                      Effect: Deny
+                      Principal: "*"
+                      Action: "s3:*"
+                      Resource: 
+                          - !GetAtt S3LoggingBucket.Arn
+                          - !Sub "${S3LoggingBucket.Arn}/*"
+                      Condition:
+                          Bool:
+                              "aws:SecureTransport": "false"
+    
+Outputs:
+    JupyterNotebook:
+        Value: !Join
+        - ''
+        - - https://
+          - !Ref 'AWS::Region'
+          - .console.aws.amazon.com/sagemaker/home?region=
+          - !Ref 'AWS::Region'
+          - '#/notebook-instances/openNotebook/'
+          - !GetAtt 'NotebookInstance.NotebookInstanceName'
+          
+          
+    BucketName:
+        Description: Name of the S3 bucket
+        Value: !Ref S3Bucket
