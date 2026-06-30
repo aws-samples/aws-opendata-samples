@@ -1,0 +1,12 @@
+name: aws_era5_wind_assessment
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python>=3.9
+  - boto3
+  - pandas
+  - numpy
+  - matplotlib
+  - scipy
+  - jupyter
