@@ -10,3 +10,12 @@ dependencies:
   - matplotlib
   - scipy
   - jupyter
+  # Additional packages for wind_energy_assessment_ncar_era5.ipynb
+  - s3fs
+  - xarray
+  - h5netcdf
+  - h5py
+  - cartopy
+  - pip
+  - pip:
+      - global-land-mask
