@@ -1,0 +1,21 @@
+name: aws_era5_wind_assessment
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python>=3.9
+  - boto3
+  - pandas
+  - numpy
+  - matplotlib
+  - scipy
+  - jupyter
+  # Additional packages for wind_energy_assessment_ncar_era5.ipynb
+  - s3fs
+  - xarray
+  - h5netcdf
+  - h5py
+  - cartopy
+  - pip
+  - pip:
+      - global-land-mask
